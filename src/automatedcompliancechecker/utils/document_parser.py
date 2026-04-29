@@ -2,8 +2,9 @@ import hashlib
 import re
 from typing import Optional
 
-from automatedcompliancechecker.models.schemas import ClauseIssue, RiskLevel
 import pymupdf
+
+from automatedcompliancechecker.models.schemas import ClauseIssue
 
 
 def _deduplicate_issues(issues: list[ClauseIssue]) -> list[ClauseIssue]:
