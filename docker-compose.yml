@@ -1,42 +1,25 @@
 services:
   ollama:
     image: ollama/ollama:latest
+    container_name: ollama
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    gpus: all
-    networks:
-      - appnet
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
-  ollama-init:
-    image: ollama/ollama:latest
-    depends_on:
-      ollama:
-        condition: service_healthy
     networks:
       - appnet
-    entrypoint: >
-      sh -c "ollama pull gemma3:4b"
 
   api:
     build: .
+    container_name: api
     ports:
       - "8000:8000"
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: gemma3:4b
     depends_on:
-      ollama:
-        condition: service_healthy
-      ollama-init:
-        condition: service_completed_successfully
+      - ollama
     restart: unless-stopped
     networks:
       - appnet

@@ -28,10 +28,10 @@ Install Ollama
 ```bash
 # macOS / Linux
 curl -fsSL https://ollama.ai/install.sh | sh
-ollama pull gemma3:4b
-# ollama pull gemma3:12b
 poetry install
 ```
+
+The API checks Ollama on startup and triggers `/api/pull` for the configured model if it is missing. Ollama downloads the model into its persistent volume; the API starts immediately and returns `503` for analysis requests until the model is ready.
 
 #### Configuration
 

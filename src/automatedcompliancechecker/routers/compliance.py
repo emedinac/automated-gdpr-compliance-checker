@@ -1,10 +1,11 @@
-import structlog
 from typing import Annotated
 
+import structlog
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from automatedcompliancechecker.models.schemas import AnalysisRequest, ComplianceReport
 from automatedcompliancechecker.services.compliance_graph import run_compliance_analysis
+from automatedcompliancechecker.services.model_manager import require_model_ready
 from automatedcompliancechecker.services.report_builder import build_report
 from automatedcompliancechecker.utils.document_parser import extract_text_from_pdf
 
@@ -58,6 +59,7 @@ async def analyse_pdf(
 
 def _run(text: str, document_name: str) -> ComplianceReport:
     """Shared analysis runner."""
+    require_model_ready()
     logger.info("analysis.started")
     try:
         logger.info(f"Running compliance analysis for document: {document_name} with text: {text[:100]}...")

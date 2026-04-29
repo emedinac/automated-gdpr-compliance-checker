@@ -5,29 +5,24 @@ Graph flow:
   chunk_document -> analyse_articles -> END
 """
 
-import json
-import structlog
-import os
-import re
 import time
 from typing import Any
 
+import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, StateGraph
 
 from automatedcompliancechecker.models.schemas import ClauseIssue, GraphState, LLMChunkResult
+from automatedcompliancechecker.services.model_manager import model_manager
 from automatedcompliancechecker.utils.document_parser import (
+    _deduplicate_issues,
     chunk_document,
     keyword_prescan,
 )
 from automatedcompliancechecker.utils.gdpr_articles import GDPR_ARTICLES
-from automatedcompliancechecker.utils.document_parser import _deduplicate_issues
 
 logger = structlog.get_logger(__name__)
-
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 SYSTEM_PROMPT = (
     "You are a GDPR/DSGVO compliance expert."
@@ -39,8 +34,8 @@ SYSTEM_PROMPT = (
 
 def get_llm() -> ChatOllama:
     return ChatOllama(
-        model=OLLAMA_MODEL,
-        base_url=OLLAMA_BASE_URL,
+        model=model_manager.model_name,
+        base_url=model_manager.base_url,
         temperature=0.0,
         format="json",
     )
