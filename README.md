@@ -13,11 +13,6 @@ FastAPI -> LangGraph pipeline -> local LLM (ollama)
 chunk_document -> analyse_articles -> [aggregate] -> ComplianceReport
 ```
 
-**LangGraph flow:**
-```
-chunk_document -> analyse_articles -> [aggregate] -> ComplianceReport
-```
-
 ## Quick Start
 
 ### 0. Package Install (if you want to run it locally)
