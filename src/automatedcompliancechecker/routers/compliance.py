@@ -1,4 +1,4 @@
-import logging
+import structlog
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -8,7 +8,7 @@ from automatedcompliancechecker.services.compliance_graph import run_compliance_
 from automatedcompliancechecker.services.report_builder import build_report
 from automatedcompliancechecker.utils.document_parser import extract_text_from_pdf
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 MAX_FILE_SIZE_MB = 10
@@ -26,9 +26,7 @@ async def analyse_text(request: AnalysisRequest) -> ComplianceReport:
     return _run(text, request.document_name or "text_input")
 
 
-@router.post(
-    "/analyse/pdf", response_model=ComplianceReport, summary="Analyse PDF document"
-)
+@router.post("/analyse/pdf", response_model=ComplianceReport, summary="Analyse PDF document")
 async def analyse_pdf(
     file: Annotated[UploadFile, File(description="PDF file to analyse")],
     document_name: Annotated[str | None, Form()] = None,
@@ -40,17 +38,13 @@ async def analyse_pdf(
     content = await file.read()
     size_mb = len(content) / (1024 * 1024)
     if size_mb > MAX_FILE_SIZE_MB:
-        raise HTTPException(
-            status_code=413, detail=f"File too large. Max {MAX_FILE_SIZE_MB}MB."
-        )
+        raise HTTPException(status_code=413, detail=f"File too large. Max {MAX_FILE_SIZE_MB}MB.")
 
     try:
         text = extract_text_from_pdf(content)
     except Exception as e:
         logger.error(f"PDF extraction failed: {e}")
-        raise HTTPException(
-            status_code=422, detail=f"Could not extract text from PDF: {e}"
-        )
+        raise HTTPException(status_code=422, detail=f"Could not extract text from PDF: {e}")
 
     if len(text.strip()) < 50:
         raise HTTPException(
@@ -64,7 +58,9 @@ async def analyse_pdf(
 
 def _run(text: str, document_name: str) -> ComplianceReport:
     """Shared analysis runner."""
+    logger.info("analysis.started")
     try:
+        logger.info(f"Running compliance analysis for document: {document_name} with text: {text[:100]}...")
         state = run_compliance_analysis(text)
     except Exception as e:
         logger.error(f"Analysis pipeline failed: {e}", exc_info=True)

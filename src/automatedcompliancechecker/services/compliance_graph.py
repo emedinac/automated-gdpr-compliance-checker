@@ -6,7 +6,7 @@ Graph flow:
 """
 
 import json
-import logging
+import structlog
 import os
 import re
 import time
@@ -22,9 +22,10 @@ from automatedcompliancechecker.utils.document_parser import (
     find_problematic_sentence,
     keyword_prescan,
 )
+from langchain_core.output_parsers import JsonOutputParser
 from automatedcompliancechecker.utils.gdpr_articles import GDPR_ARTICLES
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -56,13 +57,13 @@ def node_chunk_document(state: GraphState) -> GraphState:
 
 def node_analyse_articles(state: GraphState) -> GraphState:
     llm = get_llm()
-    issues: list[dict] = []
+    issues: list[dict[str, Any]] = []
     articles_violated: set[str] = set()
 
     for article in GDPR_ARTICLES:
         article_issues = _analyse_article(article, state.chunks, llm)
         if article_issues:
-            issues.extend(article_issues)
+            issues.extend(issue.model_dump() for issue in article_issues)
             articles_violated.add(article["id"])
 
     return GraphState(
@@ -73,9 +74,9 @@ def node_analyse_articles(state: GraphState) -> GraphState:
     )
 
 
-def _analyse_article(article: dict, chunks: list[dict], llm: ChatOllama) -> list[dict]:
+def _analyse_article(article: dict, chunks: list[dict], llm: ChatOllama) -> list[ClauseIssue]:
     relevant_chunks = [c for c in chunks if keyword_prescan(c["text"], article["risk_keywords"])]
-    found_issues = []
+    found_issues: list[ClauseIssue] = []
     seen_locations: set[str] = set()
 
     for chunk in relevant_chunks[:5]:
@@ -92,7 +93,8 @@ def _analyse_article(article: dict, chunks: list[dict], llm: ChatOllama) -> list
     return found_issues
 
 
-def _llm_classify(chunk: dict, article: dict, llm: ChatOllama) -> dict | None:
+def _llm_classify(chunk: dict, article: dict, llm: ChatOllama) -> ClauseIssue | None:
+    structured_llm = llm.with_structured_output(ClauseIssue)
     requirements_text = "\n".join(f"- {r}" for r in article["requirements"])
     user_prompt = (
         f"GDPR Article: {article['id']} — {article['title']}\n\n"
@@ -102,29 +104,25 @@ def _llm_classify(chunk: dict, article: dict, llm: ChatOllama) -> dict | None:
     )
 
     try:
-        response = llm.invoke([SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_prompt)])
-        raw = response.content if isinstance(response.content, str) else json.dumps(response.content)
-        data = json.loads(re.sub(r"```json|```", "", raw).strip())
+        raw_result = structured_llm.invoke(
+            [
+                SystemMessage(content=SYSTEM_PROMPT),
+                HumanMessage(content=user_prompt),
+            ]
+        )
+        result = ClauseIssue.model_validate(raw_result)
 
-        if not data.get("is_violation"):
+        logger.warning(f"LLM parsed response: {result}")
+
+        # structured output already validates schema
+        if not getattr(result, "is_violation", False):
             return None
 
-        return {
-            "article_id": article["id"],
-            "article_title": article["title"],
-            "issue_description": data.get("issue_description", "Potential violation detected"),
-            "problematic_text": find_problematic_sentence(chunk["text"], article["risk_keywords"])
-            or chunk["text"][:200],
-            "location": chunk["location"],
-            "risk_level": data.get("risk_level", "medium"),
-            "recommendation": data.get("recommendation", "Review and update clause for GDPR compliance"),
-        }
+        return result
+
     except Exception as e:
         logger.warning(f"LLM classification failed for {article['id']}: {e}")
         return None
-
-
-# ── Graph construction ───────────────────────────────────────────────────────
 
 
 def build_compliance_graph():
@@ -138,9 +136,6 @@ def build_compliance_graph():
 
 
 COMPLIANCE_GRAPH = build_compliance_graph()
-
-
-# ── Public API ───────────────────────────────────────────────────────────────
 
 
 def run_compliance_analysis(text: str) -> dict[str, Any]:
