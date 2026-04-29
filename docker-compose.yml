@@ -1,0 +1,33 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: gemma3:4b
+    depends_on:
+      - ollama
+    restart: unless-stopped
+    networks:
+      - appnet
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    gpus: all
+    restart: unless-stopped
+    networks:
+      - appnet
+    environment:
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+
+volumes:
+  ollama_data:
+
+networks:
+  appnet:
