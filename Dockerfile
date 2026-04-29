@@ -1,56 +1,60 @@
 # ── Builder ────────────────────────────────────────────────────────────────
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /app
 
-ENV POETRY_VERSION=2.1.4 \
+ENV POETRY_HOME=/opt/poetry \
     POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_CREATE=false
+    POETRY_VIRTUALENVS_CREATE=false \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONPATH=/app/src
 
-# system deps for native builds
+# specify the Poetry version you want to use
+ARG POETRY_VERSION=2.3.2 
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     libffi-dev \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# install poetry
-RUN pip install "poetry==$POETRY_VERSION"
+RUN pip install --upgrade pip \
+    && pip install "poetry==${POETRY_VERSION}"
 
-# copy dependency files first (cache layer)
+WORKDIR /app
+
 COPY pyproject.toml poetry.lock ./
 
-# install dependencies only (NO project yet)
-RUN poetry install --only main --no-root
+COPY README.md ./
 
-# now copy source
 COPY src/ ./src/
 
-# install project properly into site-packages
 RUN poetry install --only main
 
 
 # ── Runtime ────────────────────────────────────────────────────────────────
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# runtime system deps only
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libffi8 \
     && rm -rf /var/lib/apt/lists/*
 
-# copy only installed environment (clean)
+# bring installed env from builder
 COPY --from=builder /usr/local /usr/local
 
-# optional: copy app (only needed if not packaged properly)
+COPY pyproject.toml poetry.lock ./
+
+COPY README.md ./
+
 COPY src/ ./src/
 
-RUN useradd -m appuser && chown -R appuser /app
+RUN useradd -m appuser
 USER appuser
 
 EXPOSE 8000
