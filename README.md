@@ -1,156 +1,336 @@
 # Automated GDPR Compliance Checker
 
-Automated GDPR/DSGVO compliance analysis for contracts, privacy policies, and terms of service.
+[![Python](https://img.shields.io/badge/Python-3.14-blue)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-API-009688)](https://fastapi.tiangolo.com/)
+[![Ollama](https://img.shields.io/badge/Ollama-local%20LLM-black)](https://ollama.com/)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED)](https://www.docker.com/)
+[![Code style](https://img.shields.io/badge/code%20style-ruff-46a2f1)](https://docs.astral.sh/ruff/)
 
-## Architecture
+AI-assisted GDPR/DSGVO compliance analysis for contracts, privacy policies, and terms of service.
 
-```
-FastAPI -> LangGraph pipeline -> local LLM (ollama)
-```
+This project demonstrates a production-oriented FastAPI backend that accepts plain text or PDF documents, analyses them against key GDPR articles, and returns a structured compliance report with risk scoring, violated articles, problematic excerpts, and actionable recommendations.
 
-**LangGraph flow:**
-```
-chunk_document -> analyse_articles -> [aggregate] -> ComplianceReport
-```
+> Portfolio note: this is a technical screening tool, not legal advice. It is designed to show backend engineering, LLM integration, API design, Docker deployment, and practical product thinking.
 
-## Quick Start
+## Demo Result
 
-### 0. Package Install (if you want to run it locally)
+Given this intentionally risky policy text:
 
-Install Poetry
-```bash
-curl -sSL https://install.python-poetry.org | python3 -
-export PATH="$HOME/.local/bin:$PATH"
-source ~/.bashrc
+```text
+We collect personal data for any purpose indefinitely without consent.
+Users cannot request deletion or export their data.
+The controller is not identified and international transfers may happen without safeguards.
 ```
 
-Install Ollama
-```bash
-# macOS / Linux
-curl -fsSL https://ollama.ai/install.sh | sh
-poetry install
-```
+The API returns a structured compliance report:
 
-The API checks Ollama on startup and triggers `/api/pull` for the configured model if it is missing. Ollama downloads the model into its persistent volume; the API starts immediately and returns `503` for analysis requests until the model is ready.
+| Output field | Example result |
+| --- | --- |
+| Overall score | `25/100` |
+| Overall risk | `critical` |
+| Violated articles | `Art.5`, `Art.6`, `Art.13` |
+| Finding type | lawful basis, transparency, retention, data subject rights |
+| Response shape | typed `ComplianceReport` JSON |
 
-#### Configuration
+Minimal output example:
 
-| Env var | Default | Description |
-|---------------|---------------|---------------|
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_MODEL` | `gemma3:4b` | Model to use |
-
-
-### 1. Run the API
-
-```bash
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-Or with Docker:
-```bash
-docker compose up --build
-```
-
-### 2. Test endpoins and docs
-
-```bash
-# Health check
-curl http://localhost:8000/health
-
-# Analyse a PDF
-curl -X POST http://localhost:8000/api/v1/analyse/pdf \
-  -F "file=@privacy_policy.pdf"
-
-# Analyse raw text
-curl -X POST http://localhost:8000/api/v1/analyse/text \
-  -H "Content-Type: application/json" \
-  -d '{"text": "We collect personal data for any purpose indefinitely without consent...", "document_name": "test.txt"}'
-```
-
-Interactive docs: http://localhost:8000/docs
-
-Output reference for the previous endpoint call.
 ```json
 {
-  "document_name": "text_input",
+  "document_name": "sample-policy.txt",
   "overall_score": 25,
   "overall_risk": "critical",
-  "summary": "Found 3 potential compliance issues across 3 GDPR articles (Art.5, Art.6, Art.13). Score: 25/100.",
-  "issues": [
-    {
-      "article_id": "Art.5",
-      "article_title": "Principles of processing personal data",
-      "issue_description": "Data must be processed lawfully, fairly, and transparently",
-      "problematic_text": "We collect personal data for any purpose indefinitely without consent...",
-      "location": "Paragraphs 1–1",
-      "risk_level": "high",
-      "recommendation": "The excerpt indicates indefinite collection without transparency or defined purpose, violating lawful and fair processing requirements."
-    },
-    {
-      "article_id": "Art.6",
-      "article_title": "Lawfulness of processing",
-      "issue_description": "Processing requires a legal basis: consent, contract, legal obligation, vital interests, public task, or legitimate interests",
-      "problematic_text": "We collect personal data for any purpose indefinitely without consent...",
-      "location": "Paragraphs 1–1",
-      "risk_level": "high",
-      "recommendation": "The excerpt explicitly states absence of consent, meaning no valid legal basis for processing under Article 6."
-    },
-    {
-      "article_id": "Art.13",
-      "article_title": "Information to be provided (direct collection)",
-      "issue_description": "Identity and contact details of controller, purposes and legal basis of processing, retention period",
-      "problematic_text": "We collect personal data for any purpose indefinitely without consent...",
-      "location": "Paragraphs 1–1",
-      "risk_level": "high",
-      "recommendation": "The statement implies missing transparency obligations such as purpose limitation and legal basis disclosure required under Article 13."
-    }
-  ],
-  "articles_checked": [
-    "Art.5",
-    "Art.6",
-    "Art.7",
-    "Art.13",
-    "Art.17",
-    "Art.20",
-    "Art.25",
-    "Art.28",
-    "Art.32",
-    "Art.33",
-    "Art.44-49"
-  ],
-  "articles_violated": [
-    "Art.13",
-    "Art.5",
-    "Art.6"
-  ],
+  "summary": "Found 3 potential compliance issues across 3 GDPR articles. Score: 25/100.",
+  "articles_violated": ["Art.5", "Art.6", "Art.13"],
   "processing_time_seconds": 6.68
 }
 ```
 
+## Why This Project Matters
 
+Compliance review is expensive, repetitive, and difficult to scale. This application explores how local LLMs can support privacy and legal teams by automatically flagging high-risk clauses before human review.
 
-## GDPR Articles Covered
+The system is built around a pragmatic production pattern:
 
-Art.5, Art.6, Art.7, Art.13, Art.17, Art.20, Art.25, Art.28, Art.32, Art.33, Art.44-49
+- The API starts immediately.
+- Ollama runs as the local model server.
+- The application checks whether the configured model exists.
+- If missing, the application triggers Ollama's `/api/pull`.
+- Analysis endpoints return `503` until the model is ready. (or the model can be storaged in a shared volume).
+- Models are stored in a persistent Ollama Docker volume.
 
-## Scoring
+No model is baked into the Docker image, and there is no fragile downloader sidecar or startup sleep script.
 
-- **100–80**: Low risk — broadly compliant
-- **79–60**: Medium risk — issues to address
-- **59–35**: High risk — significant violations
-- **<35**: Critical — immediate review required
+## Highlights
 
-## Run Tests
+- **FastAPI backend** with typed request/response models.
+- **Local LLM integration** through Ollama for privacy-friendly document analysis.
+- **LangGraph pipeline** for document chunking and compliance analysis flow.
+- **PDF and plain-text input support**.
+- **Structured JSON output** using Pydantic schemas.
+- **Automatic model lifecycle management** through an async model manager.
+- **Docker Compose setup** for API + Ollama.
+- **Ruff and pytest** for code quality and verification.
 
-```bash
-pytest tests/ -v
+## What This Demonstrates
+
+This repository is intended to show practical engineering ability beyond a simple CRUD API:
+
+- designing an API around a real domain problem
+- integrating an LLM service without blocking application startup
+- handling slow external dependencies gracefully
+- structuring a Python backend with clear module boundaries
+- returning typed, predictable JSON responses
+- containerising a multi-service local AI application
+- documenting tradeoffs, limitations, and next steps
+
+## Tech Stack
+
+| Area | Tools |
+| --- | --- |
+| Backend | FastAPI, Uvicorn |
+| AI orchestration | LangGraph, LangChain |
+| Local inference | Ollama, Gemma |
+| Data validation | Pydantic |
+| PDF parsing | PyMuPDF |
+| Packaging | Poetry |
+| Deployment | Docker, Docker Compose |
+| Quality | Ruff, pytest |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Client[Client or API Docs] -> API[FastAPI API]
+    API -> Router[Compliance Router]
+    Router -> Parser[PDF/Text Parser]
+    Parser -> Graph[LangGraph Pipeline]
+    Graph -> Ollama[Ollama Local LLM]
+    Graph -> Report[Structured ComplianceReport]
 ```
 
-## Known Limitations
+Pipeline:
 
-1. **Not legal advice.** This is a screening tool. Flag findings, don't rely on them as legal conclusions.
-2. **Small LLMs hallucinate.** gemma3:4b will miss nuanced violations and occasionally flag false positives.
-3. **Scanned PDFs not supported.** Text extraction requires machine-readable PDFs.
-4. **English and German only.** GDPR keyword matching is EN/DE focused.
+```mermaid
+flowchart TD
+    A[Extract text] -> B[Chunk document]
+    B -> C[Analyse chunks against GDPR articles]
+    C -> D[Deduplicate findings]
+    D -> E[Calculate score and risk level]
+    E -> F[Return ComplianceReport JSON]
+```
+
+Model lifecycle:
+
+```mermaid
+sequenceDiagram
+    participant API as FastAPI
+    participant Manager as ModelManager
+    participant Ollama as Ollama
+
+    API->>Manager: Start background task
+    Manager->>Ollama: GET /api/tags
+    alt model exists
+        Manager->>API: Mark model ready
+    else model missing
+        Manager->>Ollama: POST /api/pull
+        Ollama->>Manager: Download into volume
+        Manager->>API: Mark model ready
+    end
+    API->>Client: 503 until ready, analysis after ready
+```
+
+## Features
+
+### Document Analysis
+
+The API accepts:
+
+- raw text through `/api/v1/analyse/text`
+- PDF files through `/api/v1/analyse/pdf`
+
+It returns:
+
+- overall compliance score
+- overall risk level
+- GDPR articles checked
+- GDPR articles potentially violated
+- problematic document excerpts
+- concise issue descriptions
+- recommended fixes
+- processing time
+
+### GDPR Articles Covered
+
+The current rule set focuses on:
+
+```text
+Art.5, Art.6, Art.7, Art.13, Art.17, Art.20,
+Art.25, Art.28, Art.32, Art.33, Art.44-49
+```
+
+### Scoring
+
+| Score | Risk |
+| --- | --- |
+| 100-80 | Low risk, broadly compliant |
+| 79-60 | Medium risk, needs review |
+| 59-35 | High risk, significant issues |
+| <35 | Critical risk, immediate review recommended |
+
+## Quick Start With Docker
+
+Requirements:
+
+- Docker
+- Docker Compose
+
+Run the stack:
+
+```bash
+cd automated-gdpr-compliance-checker
+docker compose up --build
+```
+
+Open the interactive API docs:
+
+```text
+http://localhost:8000/docs
+```
+
+Health check:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Check Ollama models:
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+On the first run, `models` may be empty while the configured model is downloading. That is expected. The API will return `503` for analysis requests until Ollama finishes pulling the model.
+
+## Run Locally Without Docker
+
+Requirements:
+
+- Python 3.14
+- Poetry
+- Ollama
+
+Install Poetry if needed:
+
+```bash
+curl -sSL https://install.python-poetry.org | python3 -
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Install dependencies:
+
+```bash
+poetry install
+```
+
+Start Ollama:
+
+```bash
+ollama serve
+```
+
+Start the API:
+
+```bash
+poetry run uvicorn automatedcompliancechecker.main:app --reload
+```
+
+Configuration:
+
+| Environment variable | Default | Description |
+| --- | --- | --- |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
+| `OLLAMA_MODEL` | `gemma3:4b` | Model used for compliance analysis |
+
+## Example Requests
+
+Analyse raw text:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/analyse/text \
+  -H "Content-Type: application/json" \
+  -d '{
+    "document_name": "sample-policy.txt",
+    "text": "We collect personal data for any purpose indefinitely without consent. Users cannot request deletion or export their data. The controller is not identified and international transfers may happen without safeguards."
+  }'
+```
+
+Analyse a PDF:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/analyse/pdf \
+  -F "file=@privacy_policy.pdf"
+```
+
+Example response:
+
+```json
+{
+  "document_name": "sample-policy.txt",
+  "overall_score": 25,
+  "overall_risk": "critical",
+  "summary": "Found 3 potential compliance issues across 3 GDPR articles. Score: 25/100.",
+  "issues": [
+    {
+      "article_id": "Art.5",
+      "article_title": "Principles of processing personal data",
+      "issue_description": "Data must be processed lawfully, fairly, and transparently.",
+      "problematic_text": "We collect personal data for any purpose indefinitely without consent.",
+      "location": "Paragraphs 1-1",
+      "risk_level": "high",
+      "recommendation": "Define lawful purposes, retention limits, and transparent processing notices."
+    }
+  ],
+  "articles_checked": ["Art.5", "Art.6", "Art.13"],
+  "articles_violated": ["Art.5", "Art.6", "Art.13"],
+  "processing_time_seconds": 6.68
+}
+```
+
+## Code Quality
+
+Run lint checks:
+
+```bash
+poetry run ruff check src tests
+```
+
+Run tests:
+
+```bash
+poetry run pytest tests -q
+```
+
+## Engineering Decisions
+
+- **Local-first LLM inference:** documents are analysed through a local Ollama server instead of sending sensitive contracts to a hosted API.
+- **Non-blocking startup:** the API does not wait for large model downloads before becoming reachable.
+- **Application-owned readiness:** the backend decides whether analysis can run and returns `503` while the model is unavailable.
+- **Persistent model storage:** Ollama stores downloaded models in a Docker volume.
+- **Typed API contracts:** Pydantic models define the request and report schema.
+- **Modular pipeline design:** parsing, model lifecycle, analysis, and report building are separated into focused modules.
+
+## Limitations
+
+- This is not legal advice and should not replace qualified legal review.
+- Small local models may miss nuanced issues or produce false positives.
+- Scanned image PDFs are not supported unless OCR is added.
+- Current keyword and article coverage is focused on common GDPR risk areas.
+- English and German language support are the primary target.
+
+## Future Improvements
+
+- [ ] Streaming model download status endpoint.
+- [ ] Frontend dashboard for uploading documents and reviewing reports.
+- [ ] OCR support for scanned PDFs.
+- [ ] Multi-model routing for speed vs accuracy.
+- [ ] Exportable PDF/HTML compliance reports.

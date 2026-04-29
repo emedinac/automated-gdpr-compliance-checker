@@ -23,7 +23,8 @@ dependencies = [
 dev = [
     "streamlit (>=1.57.0,<2.0.0)",
     "pytest (>=9.0.3,<10.0.0)",
-    "ruff (>=0.15.12,<0.16.0)"
+    "ruff (>=0.15.12,<0.16.0)",
+    "pytest-cov (>=7.1.0,<8.0.0)"
 ]
 
 [tool.ruff.lint]
@@ -39,3 +40,7 @@ packages = [{ include = "automatedcompliancechecker", from = "src" }]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.coverage.run]
+omit = [
+    "dev/*",
+]
