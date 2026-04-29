@@ -7,7 +7,7 @@ from automatedcompliancechecker.utils.lifespan import lifespan
 app = FastAPI(
     title="GDPR Compliance Checker API",
     description="Automated GDPR/DSGVO compliance analysis for contracts and privacy policies.",
-    version="1.0.0",
+    version="0.1.0",
     lifespan=lifespan,
 )
 
