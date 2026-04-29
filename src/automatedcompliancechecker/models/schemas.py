@@ -4,6 +4,14 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
+class GraphState(BaseModel):
+    text: str
+    chunks: list[dict] = []
+    issues: list[dict] = []
+    articles_violated: list[str] = []
+    error: str | None = None
+
+
 class RiskLevel(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
@@ -111,6 +119,6 @@ class AnalysisRequest(BaseModel):
         ),
     )
     document_name: Optional[str] = Field(
-        default="unnamed_document",
+        default="EU2024-06-30 Compliance Check",
         description="Optional display name for the document, used in the report output.",
     )
