@@ -76,6 +76,65 @@ curl -X POST http://localhost:8000/api/v1/analyse/text \
 
 Interactive docs: http://localhost:8000/docs
 
+Output reference for the previous endpoint call.
+```json
+{
+  "document_name": "text_input",
+  "overall_score": 25,
+  "overall_risk": "critical",
+  "summary": "Found 3 potential compliance issues across 3 GDPR articles (Art.5, Art.6, Art.13). Score: 25/100.",
+  "issues": [
+    {
+      "article_id": "Art.5",
+      "article_title": "Principles of processing personal data",
+      "issue_description": "Data must be processed lawfully, fairly, and transparently",
+      "problematic_text": "We collect personal data for any purpose indefinitely without consent...",
+      "location": "Paragraphs 1–1",
+      "risk_level": "high",
+      "recommendation": "The excerpt indicates indefinite collection without transparency or defined purpose, violating lawful and fair processing requirements."
+    },
+    {
+      "article_id": "Art.6",
+      "article_title": "Lawfulness of processing",
+      "issue_description": "Processing requires a legal basis: consent, contract, legal obligation, vital interests, public task, or legitimate interests",
+      "problematic_text": "We collect personal data for any purpose indefinitely without consent...",
+      "location": "Paragraphs 1–1",
+      "risk_level": "high",
+      "recommendation": "The excerpt explicitly states absence of consent, meaning no valid legal basis for processing under Article 6."
+    },
+    {
+      "article_id": "Art.13",
+      "article_title": "Information to be provided (direct collection)",
+      "issue_description": "Identity and contact details of controller, purposes and legal basis of processing, retention period",
+      "problematic_text": "We collect personal data for any purpose indefinitely without consent...",
+      "location": "Paragraphs 1–1",
+      "risk_level": "high",
+      "recommendation": "The statement implies missing transparency obligations such as purpose limitation and legal basis disclosure required under Article 13."
+    }
+  ],
+  "articles_checked": [
+    "Art.5",
+    "Art.6",
+    "Art.7",
+    "Art.13",
+    "Art.17",
+    "Art.20",
+    "Art.25",
+    "Art.28",
+    "Art.32",
+    "Art.33",
+    "Art.44-49"
+  ],
+  "articles_violated": [
+    "Art.13",
+    "Art.5",
+    "Art.6"
+  ],
+  "processing_time_seconds": 6.68
+}
+```
+
+
 
 ## GDPR Articles Covered
 
