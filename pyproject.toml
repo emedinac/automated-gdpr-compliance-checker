@@ -27,6 +27,9 @@ dev = [
 [tool.ruff.lint]
 select = ["E", "F", "I"]  # errors, pyflakes, imports
 
+[tool.ruff]
+line-length = 120
+
 [tool.poetry]
 packages = [{ include = "automatedcompliancechecker", from = "src" }]
 
