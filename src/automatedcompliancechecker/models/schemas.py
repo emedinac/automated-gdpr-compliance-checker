@@ -102,10 +102,12 @@ class ComplianceReport(BaseModel):
     articles_checked: list[str] = Field(
         ...,
         description="All GDPR article IDs that were checked during analysis.",
+        examples=["Art.5", "Art.6"],
     )
     articles_violated: list[str] = Field(
         ...,
         description="Subset of articles_checked where at least one violation was found.",
+        examples=["Art.5", "Art.6"],
     )
     processing_time_seconds: float = Field(
         ...,
@@ -123,6 +125,6 @@ class AnalysisRequest(BaseModel):
         ),
     )
     document_name: Optional[str] = Field(
-        default="EU2024-06-30 Compliance Check",
+        default="",
         description="Optional display name for the document, used in the report output.",
     )

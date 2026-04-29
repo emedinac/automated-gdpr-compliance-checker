@@ -1,3 +1,4 @@
+import hashlib
 import re
 from typing import Optional
 
@@ -5,30 +6,17 @@ from automatedcompliancechecker.models.schemas import ClauseIssue, RiskLevel
 import pymupdf
 
 
-def _normalize_issues(issues: list[ClauseIssue]) -> list[ClauseIssue]:
-    for issue in issues:
-        text = issue.problematic_text.lower()
-
-        if "without consent" in text:
-            issue.risk_level = RiskLevel.CRITICAL
-
-        elif "indefinitely" in text:
-            issue.risk_level = max(issue.risk_level, RiskLevel.HIGH)
-
-    return issues
-
-
 def _deduplicate_issues(issues: list[ClauseIssue]) -> list[ClauseIssue]:
     seen = set()
     result = []
 
     for issue in issues:
-        key = (
-            issue.article_id,
-            issue.problematic_text[:120],
-        )
+        key_raw = f"{issue.article_id}:{issue.problematic_text}"
+        key = hashlib.md5(key_raw.encode()).hexdigest()
+
         if key in seen:
             continue
+
         seen.add(key)
         result.append(issue)
 
@@ -46,45 +34,37 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
 
 
 def chunk_document(text: str, chunk_size: int = 800, overlap: int = 100) -> list[dict]:
-    """
-    Split document into chunks with location metadata.
-    Returns list of {text, location, paragraph_index}.
-    """
-    # Split into paragraphs first
     paragraphs = [p.strip() for p in re.split(r"\n{2,}", text) if p.strip()]
 
     chunks = []
-    current_chunk = []
-    current_length = 0
-    para_start = 0
+    window = []
+    start = 0
 
-    for para_idx, para in enumerate(paragraphs):
+    for i, para in enumerate(paragraphs):
         words = para.split()
-        if current_length + len(words) > chunk_size and current_chunk:
-            chunk_text = " ".join(current_chunk)
+
+        if len(window) + len(words) > chunk_size and window:
             chunks.append(
                 {
-                    "text": chunk_text,
-                    "location": f"Paragraphs {para_start + 1}–{para_idx}",
-                    "paragraph_start": para_start,
-                    "paragraph_end": para_idx,
+                    "text": " ".join(window),
+                    "location": f"Paragraphs {start + 1}–{i}",
+                    "start": start,
+                    "end": i,
                 }
             )
-            # Overlap: keep last paragraph in next chunk
-            current_chunk = current_chunk[-overlap:] if overlap else []
-            current_length = len(current_chunk)
-            para_start = max(0, para_idx - 1)
 
-        current_chunk.extend(words)
-        current_length += len(words)
+            window = window[-overlap:]  # word-level overlap (OK now)
+            start = max(0, i - 1)
 
-    if current_chunk:
+        window.extend(words)
+
+    if window:
         chunks.append(
             {
-                "text": " ".join(current_chunk),
-                "location": f"Paragraphs {para_start + 1}–{len(paragraphs)}",
-                "paragraph_start": para_start,
-                "paragraph_end": len(paragraphs),
+                "text": " ".join(window),
+                "location": f"Paragraphs {start + 1}–{len(paragraphs)}",
+                "start": start,
+                "end": len(paragraphs),
             }
         )
 

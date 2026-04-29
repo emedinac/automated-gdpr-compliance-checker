@@ -19,11 +19,10 @@ from langgraph.graph import END, StateGraph
 from automatedcompliancechecker.models.schemas import ClauseIssue, GraphState, LLMChunkResult
 from automatedcompliancechecker.utils.document_parser import (
     chunk_document,
-    find_problematic_sentence,
     keyword_prescan,
 )
 from automatedcompliancechecker.utils.gdpr_articles import GDPR_ARTICLES
-from automatedcompliancechecker.utils.document_parser import _deduplicate_issues, _normalize_issues
+from automatedcompliancechecker.utils.document_parser import _deduplicate_issues
 
 logger = structlog.get_logger(__name__)
 
@@ -61,13 +60,15 @@ def node_analyse_articles(state: GraphState) -> GraphState:
         all_issues.extend(issues)
 
     deduped = _deduplicate_issues(all_issues)
-    normalized = _normalize_issues(deduped)
-
+    logger.info(
+        "deduped_issues",
+        issues=[i.model_dump() for i in deduped],
+    )
     return GraphState(
         text=state.text,
         chunks=state.chunks,
-        issues=[i.model_dump() for i in normalized],
-        articles_violated=sorted({i.article_id for i in normalized}),
+        issues=[i.model_dump() for i in deduped],
+        articles_violated=sorted({i.article_id for i in all_issues}),
     )
 
 
@@ -100,7 +101,8 @@ def _llm_classify_chunk(chunk: dict, llm: ChatOllama) -> list[ClauseIssue]:
         "Evaluate the following document excerpt against these GDPR articles.\n\n"
         f"{articles_text}\n\n"
         f"Excerpt (location: {chunk['location']}):\n---\n{chunk['text'][:1200]}\n---\n\n"
-        "Return only violations."
+        "Return ALL applicable violations. Multiple articles may be violated simultaneously."
+        "Do not limit to a single issue. Return all relevant violations."
     )
 
     try:
@@ -110,8 +112,9 @@ def _llm_classify_chunk(chunk: dict, llm: ChatOllama) -> list[ClauseIssue]:
                 HumanMessage(content=user_prompt),
             ]
         )
+        logger.info("RAW LLM OUTPUT", data=raw_result)
         result = LLMChunkResult.model_validate(raw_result)
-
+        logger.info("PARSED MODEL:", result.model_dump())
         return result.issues or []
 
     except Exception as e:
