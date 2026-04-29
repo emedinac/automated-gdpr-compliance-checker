@@ -102,7 +102,14 @@ def _llm_classify_chunk(chunk: dict, llm: ChatOllama) -> list[ClauseIssue]:
         f"{articles_text}\n\n"
         f"Excerpt (location: {chunk['location']}):\n---\n{chunk['text'][:1200]}\n---\n\n"
         "Return ALL applicable violations. Multiple articles may be violated simultaneously."
-        "Do not limit to a single issue. Return all relevant violations."
+        "For each violation:"
+        "- article_id"
+        "- exact requirement violated (quote it)"
+        "- exact excerpt supporting it"
+        "- short justification (max 1 sentence)"
+        ""
+        "Only return violations explicitly supported by the excerpt."
+        "Do NOT infer beyond the text."
     )
 
     try:

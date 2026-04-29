@@ -22,7 +22,7 @@ class RiskLevel(str, Enum):
 class ClauseIssue(BaseModel):
     article_id: str = Field(
         ...,
-        description="GDPR article identifier that is potentially violated, e.g. 'Art.5', 'Art.6'.",
+        description="GDPR article identifier that is potentially violated, e.g. '5', '6'.",
     )
     article_title: str = Field(
         ...,
@@ -102,12 +102,12 @@ class ComplianceReport(BaseModel):
     articles_checked: list[str] = Field(
         ...,
         description="All GDPR article IDs that were checked during analysis.",
-        examples=["Art.5", "Art.6"],
+        examples=["5", "6"],
     )
     articles_violated: list[str] = Field(
         ...,
         description="Subset of articles_checked where at least one violation was found.",
-        examples=["Art.5", "Art.6"],
+        examples=["5", "6"],
     )
     processing_time_seconds: float = Field(
         ...,
