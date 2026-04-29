@@ -16,14 +16,14 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, StateGraph
 
-from automatedcompliancechecker.models.schemas import ClauseIssue, GraphState
+from automatedcompliancechecker.models.schemas import ClauseIssue, GraphState, LLMChunkResult
 from automatedcompliancechecker.utils.document_parser import (
     chunk_document,
     find_problematic_sentence,
     keyword_prescan,
 )
-from langchain_core.output_parsers import JsonOutputParser
 from automatedcompliancechecker.utils.gdpr_articles import GDPR_ARTICLES
+from automatedcompliancechecker.utils.document_parser import _deduplicate_issues, _normalize_issues
 
 logger = structlog.get_logger(__name__)
 
@@ -47,9 +47,6 @@ def get_llm() -> ChatOllama:
     )
 
 
-# ── Graph nodes ──────────────────────────────────────────────────────────────
-
-
 def node_chunk_document(state: GraphState) -> GraphState:
     chunks = chunk_document(state.text, chunk_size=600, overlap=80)
     return GraphState(text=state.text, chunks=chunks)
@@ -57,20 +54,20 @@ def node_chunk_document(state: GraphState) -> GraphState:
 
 def node_analyse_articles(state: GraphState) -> GraphState:
     llm = get_llm()
-    issues: list[dict[str, Any]] = []
-    articles_violated: set[str] = set()
+    all_issues: list[ClauseIssue] = []
 
-    for article in GDPR_ARTICLES:
-        article_issues = _analyse_article(article, state.chunks, llm)
-        if article_issues:
-            issues.extend(issue.model_dump() for issue in article_issues)
-            articles_violated.add(article["id"])
+    for chunk in state.chunks:
+        issues = _llm_classify_chunk(chunk, llm)
+        all_issues.extend(issues)
+
+    deduped = _deduplicate_issues(all_issues)
+    normalized = _normalize_issues(deduped)
 
     return GraphState(
         text=state.text,
         chunks=state.chunks,
-        issues=issues,
-        articles_violated=list(articles_violated),
+        issues=[i.model_dump() for i in normalized],
+        articles_violated=sorted({i.article_id for i in normalized}),
     )
 
 
@@ -84,45 +81,42 @@ def _analyse_article(article: dict, chunks: list[dict], llm: ChatOllama) -> list
             continue
         seen_locations.add(chunk["location"])
 
-        issue = _llm_classify(chunk, article, llm)
-        if issue:
-            found_issues.append(issue)
+        chunk_issues = _llm_classify_chunk(chunk, llm)
+        found_issues.extend(chunk_issues)
         if len(found_issues) >= 2:
             break
 
     return found_issues
 
 
-def _llm_classify(chunk: dict, article: dict, llm: ChatOllama) -> ClauseIssue | None:
-    structured_llm = llm.with_structured_output(ClauseIssue)
-    requirements_text = "\n".join(f"- {r}" for r in article["requirements"])
+def _llm_classify_chunk(chunk: dict, llm: ChatOllama) -> list[ClauseIssue]:
+    structured_llm = llm.with_structured_output(LLMChunkResult)
+
+    articles_text = "\n\n".join(
+        f"{a['id']} — {a['title']}\n" + "\n".join(f"- {r}" for r in a["requirements"]) for a in GDPR_ARTICLES
+    )
+
     user_prompt = (
-        f"GDPR Article: {article['id']} — {article['title']}\n\n"
-        f"Requirements:\n{requirements_text}\n\n"
-        f"Document excerpt (location: {chunk['location']}):\n---\n{chunk['text'][:1200]}\n---\n\n"
-        "Does this excerpt violate any of the above requirements?"
+        "Evaluate the following document excerpt against these GDPR articles.\n\n"
+        f"{articles_text}\n\n"
+        f"Excerpt (location: {chunk['location']}):\n---\n{chunk['text'][:1200]}\n---\n\n"
+        "Return only violations."
     )
 
     try:
         raw_result = structured_llm.invoke(
             [
-                SystemMessage(content=SYSTEM_PROMPT),
+                SystemMessage(content="You are a GDPR compliance expert."),
                 HumanMessage(content=user_prompt),
             ]
         )
-        result = ClauseIssue.model_validate(raw_result)
+        result = LLMChunkResult.model_validate(raw_result)
 
-        logger.warning(f"LLM parsed response: {result}")
-
-        # structured output already validates schema
-        if not getattr(result, "is_violation", False):
-            return None
-
-        return result
+        return result.issues or []
 
     except Exception as e:
-        logger.warning(f"LLM classification failed for {article['id']}: {e}")
-        return None
+        logger.warning(f"Chunk classification failed: {e}")
+        return []
 
 
 def build_compliance_graph():

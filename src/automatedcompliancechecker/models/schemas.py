@@ -65,6 +65,10 @@ class ClauseIssue(BaseModel):
     )
 
 
+class LLMChunkResult(BaseModel):
+    issues: list[ClauseIssue]
+
+
 class ComplianceReport(BaseModel):
     document_name: str = Field(
         ...,

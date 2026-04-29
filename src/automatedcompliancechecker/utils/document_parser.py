@@ -1,7 +1,38 @@
 import re
 from typing import Optional
 
-import pymupdf  # PyMuPDF
+from automatedcompliancechecker.models.schemas import ClauseIssue, RiskLevel
+import pymupdf
+
+
+def _normalize_issues(issues: list[ClauseIssue]) -> list[ClauseIssue]:
+    for issue in issues:
+        text = issue.problematic_text.lower()
+
+        if "without consent" in text:
+            issue.risk_level = RiskLevel.CRITICAL
+
+        elif "indefinitely" in text:
+            issue.risk_level = max(issue.risk_level, RiskLevel.HIGH)
+
+    return issues
+
+
+def _deduplicate_issues(issues: list[ClauseIssue]) -> list[ClauseIssue]:
+    seen = set()
+    result = []
+
+    for issue in issues:
+        key = (
+            issue.article_id,
+            issue.problematic_text[:120],
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(issue)
+
+    return result
 
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
