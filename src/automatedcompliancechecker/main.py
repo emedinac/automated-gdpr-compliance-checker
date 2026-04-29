@@ -1,6 +1,6 @@
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from automatedcompliancechecker.routers import compliance
 from automatedcompliancechecker.utils.lifespan import lifespan
 

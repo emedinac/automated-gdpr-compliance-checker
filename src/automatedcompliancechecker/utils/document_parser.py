@@ -1,5 +1,6 @@
 import re
 from typing import Optional
+
 import pymupdf  # PyMuPDF
 
 
@@ -20,7 +21,7 @@ def chunk_document(text: str, chunk_size: int = 800, overlap: int = 100) -> list
     """
     # Split into paragraphs first
     paragraphs = [p.strip() for p in re.split(r"\n{2,}", text) if p.strip()]
-    
+
     chunks = []
     current_chunk = []
     current_length = 0
@@ -30,12 +31,14 @@ def chunk_document(text: str, chunk_size: int = 800, overlap: int = 100) -> list
         words = para.split()
         if current_length + len(words) > chunk_size and current_chunk:
             chunk_text = " ".join(current_chunk)
-            chunks.append({
-                "text": chunk_text,
-                "location": f"Paragraphs {para_start + 1}–{para_idx}",
-                "paragraph_start": para_start,
-                "paragraph_end": para_idx,
-            })
+            chunks.append(
+                {
+                    "text": chunk_text,
+                    "location": f"Paragraphs {para_start + 1}–{para_idx}",
+                    "paragraph_start": para_start,
+                    "paragraph_end": para_idx,
+                }
+            )
             # Overlap: keep last paragraph in next chunk
             current_chunk = current_chunk[-overlap:] if overlap else []
             current_length = len(current_chunk)
@@ -45,12 +48,14 @@ def chunk_document(text: str, chunk_size: int = 800, overlap: int = 100) -> list
         current_length += len(words)
 
     if current_chunk:
-        chunks.append({
-            "text": " ".join(current_chunk),
-            "location": f"Paragraphs {para_start + 1}–{len(paragraphs)}",
-            "paragraph_start": para_start,
-            "paragraph_end": len(paragraphs),
-        })
+        chunks.append(
+            {
+                "text": " ".join(current_chunk),
+                "location": f"Paragraphs {para_start + 1}–{len(paragraphs)}",
+                "paragraph_start": para_start,
+                "paragraph_end": len(paragraphs),
+            }
+        )
 
     return chunks
 

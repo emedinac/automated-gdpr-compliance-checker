@@ -1,4 +1,5 @@
 import io
+
 import httpx
 import streamlit as st
 
@@ -11,7 +12,9 @@ input_mode = st.radio("Input", ["Text", "PDF"], horizontal=True)
 if input_mode == "Text":
     text = st.text_area("Document text", height=400)
     if st.button("Analyse"):
-        r = httpx.post(f"{API_BASE_URL}/api/v1/analyse/text", json={"text": text}, timeout=120)
+        r = httpx.post(
+            f"{API_BASE_URL}/api/v1/analyse/text", json={"text": text}, timeout=120
+        )
         st.json(r.json())
 else:
     file = st.file_uploader("Upload PDF", type=["pdf"])

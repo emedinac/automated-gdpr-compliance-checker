@@ -2,7 +2,11 @@
 Convert raw analysis state -> structured ComplianceReport with score.
 """
 
-from automatedcompliancechecker.models.schemas import ClauseIssue, ComplianceReport, RiskLevel
+from automatedcompliancechecker.models.schemas import (
+    ClauseIssue,
+    ComplianceReport,
+    RiskLevel,
+)
 from automatedcompliancechecker.utils.gdpr_articles import GDPR_ARTICLES
 
 RISK_WEIGHTS = {
@@ -33,7 +37,9 @@ def overall_risk(score: int) -> RiskLevel:
     return RiskLevel.CRITICAL
 
 
-def build_summary(score: int, issues: list[ClauseIssue], articles_violated: list[str]) -> str:
+def build_summary(
+    score: int, issues: list[ClauseIssue], articles_violated: list[str]
+) -> str:
     if not issues:
         return "No significant GDPR compliance issues detected. Document appears broadly compliant."
     n = len(issues)
@@ -67,7 +73,12 @@ def build_report(
     ]
 
     # Sort by severity (critical first)
-    severity_order = {RiskLevel.CRITICAL: 0, RiskLevel.HIGH: 1, RiskLevel.MEDIUM: 2, RiskLevel.LOW: 3}
+    severity_order = {
+        RiskLevel.CRITICAL: 0,
+        RiskLevel.HIGH: 1,
+        RiskLevel.MEDIUM: 2,
+        RiskLevel.LOW: 3,
+    }
     issues.sort(key=lambda x: severity_order.get(x.risk_level, 4))
 
     score = compute_score(issues)

@@ -97,6 +97,6 @@ pytest tests/ -v
 ## Known Limitations
 
 1. **Not legal advice.** This is a screening tool. Flag findings, don't rely on them as legal conclusions.
-2. **Small LLMs hallucinate.** gemma3:4b will miss nuanced violations and occasionally flag false positives. For production, use llama3.1:8b minimum.
+2. **Small LLMs hallucinate.** gemma3:4b will miss nuanced violations and occasionally flag false positives.
 3. **Scanned PDFs not supported.** Text extraction requires machine-readable PDFs.
 4. **English and German only.** GDPR keyword matching is EN/DE focused.

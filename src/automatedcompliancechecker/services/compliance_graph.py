@@ -19,7 +19,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, StateGraph
 
-from automatedcompliancechecker.models.schemas import ClauseIssue, RiskLevel
+from automatedcompliancechecker.models.schemas import RiskLevel
 from automatedcompliancechecker.utils.document_parser import (
     chunk_document,
     find_problematic_sentence,
@@ -83,6 +83,7 @@ def get_llm():
 
 # ── Graph nodes ─────────────────────────────────────────────────────────────
 
+
 def node_chunk_document(state: GraphState) -> GraphState:
     """Split document text into overlapping chunks."""
     chunks = chunk_document(state["text"], chunk_size=600, overlap=80)
@@ -141,14 +142,14 @@ def _analyse_article(
 def _llm_classify(chunk: dict, article: dict, llm: ChatOllama) -> dict | None:
     """Use LLM to classify if chunk violates the article."""
     requirements_text = "\n".join(f"- {r}" for r in article["requirements"])
-    user_prompt = f"""GDPR Article: {article['id']} — {article['title']}
+    user_prompt = f"""GDPR Article: {article["id"]} — {article["title"]}
 
 Requirements:
 {requirements_text}
 
-Document excerpt (location: {chunk['location']}):
+Document excerpt (location: {chunk["location"]}):
 ---
-{chunk['text'][:1200]}
+{chunk["text"][:1200]}
 ---
 
 Does this excerpt violate any of the above requirements?"""
@@ -165,15 +166,21 @@ Does this excerpt violate any of the above requirements?"""
         if not data.get("is_violation"):
             return None
 
-        problematic_text = find_problematic_sentence(chunk["text"], article["risk_keywords"])
+        problematic_text = find_problematic_sentence(
+            chunk["text"], article["risk_keywords"]
+        )
         return {
             "article_id": article["id"],
             "article_title": article["title"],
-            "issue_description": data.get("issue_description", "Potential violation detected"),
+            "issue_description": data.get(
+                "issue_description", "Potential violation detected"
+            ),
             "problematic_text": problematic_text or chunk["text"][:200],
             "location": chunk["location"],
             "risk_level": data.get("risk_level", "medium"),
-            "recommendation": data.get("recommendation", "Review and update clause for GDPR compliance"),
+            "recommendation": data.get(
+                "recommendation", "Review and update clause for GDPR compliance"
+            ),
         }
     except Exception as e:
         logger.warning(f"LLM classification failed for {article['id']}: {e}")
@@ -186,7 +193,9 @@ def _rule_based_classify(chunk: dict, article: dict) -> dict | None:
     Less precise than LLM but zero latency and zero cost.
     """
     text_lower = chunk["text"].lower()
-    matched_keywords = [kw for kw in article["risk_keywords"] if kw.lower() in text_lower]
+    matched_keywords = [
+        kw for kw in article["risk_keywords"] if kw.lower() in text_lower
+    ]
 
     # Require at least 2 keyword hits to reduce false positives
     if len(matched_keywords) < 2:
@@ -213,7 +222,9 @@ def _rule_based_classify(chunk: dict, article: dict) -> dict | None:
     if risk == RiskLevel.LOW and len(matched_keywords) < 3:
         return None  # Not confident enough without LLM
 
-    problematic_text = find_problematic_sentence(chunk["text"], article["risk_keywords"])
+    problematic_text = find_problematic_sentence(
+        chunk["text"], article["risk_keywords"]
+    )
     return {
         "article_id": article["id"],
         "article_title": article["title"],
@@ -226,6 +237,7 @@ def _rule_based_classify(chunk: dict, article: dict) -> dict | None:
 
 
 # ── Graph construction ───────────────────────────────────────────────────────
+
 
 def build_compliance_graph():
     graph = StateGraph(GraphState)
@@ -242,11 +254,18 @@ COMPLIANCE_GRAPH = build_compliance_graph()
 
 # ── Public API ───────────────────────────────────────────────────────────────
 
+
 def run_compliance_analysis(text: str) -> dict[str, Any]:
     """Run full GDPR compliance analysis. Returns raw state dict."""
     t0 = time.time()
     final_state = COMPLIANCE_GRAPH.invoke(
-        {"text": text, "chunks": [], "issues": [], "articles_violated": [], "error": None}
+        {
+            "text": text,
+            "chunks": [],
+            "issues": [],
+            "articles_violated": [],
+            "error": None,
+        }
     )
     elapsed = round(time.time() - t0, 2)
     return {**final_state, "processing_time_seconds": elapsed}
