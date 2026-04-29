@@ -30,7 +30,8 @@ GDPR_ARTICLES = [
         "id": "Art.6",
         "title": "Lawfulness of processing",
         "requirements": [
-            "Processing requires a legal basis: consent, contract, legal obligation, vital interests, public task, or legitimate interests",
+            "Processing requires a legal basis:",
+            "Consent, contract, legal obligation, vital interests, public task, or legitimate interests",
             "Consent must be freely given, specific, informed, and unambiguous",
         ],
         "risk_keywords": [

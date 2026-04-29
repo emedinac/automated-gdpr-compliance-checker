@@ -30,7 +30,8 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 SYSTEM_PROMPT = (
-    "You are a GDPR/DSGVO compliance expert. Analyse the given document excerpt and determine if it violates the specified GDPR article requirements."
+    "You are a GDPR/DSGVO compliance expert."
+    " Analyse the given document excerpt and determine if it violates the specified GDPR article requirements."
     f" Respond ONLY with a valid JSON object matching this schema: {ClauseIssue.model_json_schema()}"
     " Be strict but fair. Only flag actual violations, not missing-but-not-required clauses."
 )
