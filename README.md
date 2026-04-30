@@ -100,23 +100,23 @@ This repository is intended to show practical engineering ability beyond a simpl
 
 ```mermaid
 flowchart LR
-    Client[Client or API Docs] -> API[FastAPI API]
-    API -> Router[Compliance Router]
-    Router -> Parser[PDF/Text Parser]
-    Parser -> Graph[LangGraph Pipeline]
-    Graph -> Ollama[Ollama Local LLM]
-    Graph -> Report[Structured ComplianceReport]
+    Client["Client or API Docs"] --> API["FastAPI API"]
+    API --> Router["Compliance Router"]
+    Router --> Parser["PDF/Text Parser"]
+    Parser --> Graph["LangGraph Pipeline"]
+    Graph --> Ollama["Ollama Local LLM"]
+    Graph --> Report["Structured ComplianceReport"]
 ```
 
 Pipeline:
 
 ```mermaid
 flowchart TD
-    A[Extract text] -> B[Chunk document]
-    B -> C[Analyse chunks against GDPR articles]
-    C -> D[Deduplicate findings]
-    D -> E[Calculate score and risk level]
-    E -> F[Return ComplianceReport JSON]
+    A["Extract text"] --> B["Chunk document"]
+    B --> C["Analyse chunks against GDPR articles"]
+    C --> D["Deduplicate findings"]
+    D --> E["Calculate score and risk level"]
+    E --> F["Return ComplianceReport JSON"]
 ```
 
 Model lifecycle:
