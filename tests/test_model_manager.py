@@ -46,6 +46,36 @@ def test_ensure_model_skips_pull_when_model_exists():
     assert calls == {"exists": 1, "pull": 0}
 
 
+def test_ensure_model_marks_openai_ready_when_api_key_is_configured():
+    manager = ModelManager(
+        provider="openai",
+        base_url="https://api.openai.com/v1",
+        model_name="gpt-4o-mini",
+        api_key="test-key",
+    )
+
+    asyncio.run(manager.ensure_model())
+
+    assert manager.ready is True
+    assert manager.status.api_key_configured is True
+    assert manager.status.last_error is None
+
+
+def test_ensure_model_requires_openai_api_key():
+    manager = ModelManager(
+        provider="openai",
+        base_url="https://api.openai.com/v1",
+        model_name="gpt-4o-mini",
+        api_key=None,
+    )
+
+    asyncio.run(manager.ensure_model())
+
+    assert manager.ready is False
+    assert manager.status.api_key_configured is False
+    assert "OPENAI_API_KEY" in manager.status.last_error
+
+
 def test_model_exists_reads_ollama_tags(monkeypatch):
     class FakeResponse:
         def raise_for_status(self):

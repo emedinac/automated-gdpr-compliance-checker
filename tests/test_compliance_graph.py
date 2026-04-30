@@ -1,3 +1,6 @@
+import sys
+import types
+
 from automatedcompliancechecker.models.schemas import GraphState, LLMChunkResult
 from automatedcompliancechecker.services import compliance_graph
 
@@ -7,6 +10,41 @@ def test_get_llm_uses_model_manager_configuration():
 
     assert llm.model == compliance_graph.model_manager.model_name
     assert llm.base_url == compliance_graph.model_manager.base_url
+
+
+def test_get_llm_supports_openai_compatible_provider(monkeypatch):
+    captured = {}
+
+    class FakeChatOpenAI:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    fake_module = types.SimpleNamespace(ChatOpenAI=FakeChatOpenAI)
+    monkeypatch.setitem(sys.modules, "langchain_openai", fake_module)
+
+    original_provider = compliance_graph.model_manager.provider
+    original_model_name = compliance_graph.model_manager.model_name
+    original_base_url = compliance_graph.model_manager.base_url
+    original_api_key = compliance_graph.model_manager.api_key
+
+    compliance_graph.model_manager.provider = "openai"
+    compliance_graph.model_manager.model_name = "gpt-4o-mini"
+    compliance_graph.model_manager.base_url = "http://localhost:11434/v1"
+    compliance_graph.model_manager.api_key = "test-key"
+
+    try:
+        llm = compliance_graph.get_llm()
+    finally:
+        compliance_graph.model_manager.provider = original_provider
+        compliance_graph.model_manager.model_name = original_model_name
+        compliance_graph.model_manager.base_url = original_base_url
+        compliance_graph.model_manager.api_key = original_api_key
+
+    assert isinstance(llm, FakeChatOpenAI)
+    assert captured["model"] == "gpt-4o-mini"
+    assert captured["base_url"] == "http://localhost:11434/v1"
+    assert captured["api_key"].get_secret_value() == "test-key"
+    assert captured["temperature"] == 0.0
 
 
 def test_node_chunk_document_returns_chunks():
@@ -97,4 +135,3 @@ def test_run_compliance_analysis_adds_processing_time(monkeypatch):
 
     assert result["issues"] == []
     assert "processing_time_seconds" in result
-
