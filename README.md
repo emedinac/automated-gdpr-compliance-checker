@@ -167,7 +167,7 @@ It returns:
 
 ### GDPR Articles Covered
 
-The current rule set focuses on:
+The example dataset made by summarizing articles from a real data source. The current rule set focuses on:
 
 ```text
 Art.5, Art.6, Art.7, Art.13, Art.17, Art.20,
