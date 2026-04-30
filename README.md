@@ -3,6 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.14-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-API-009688)](https://fastapi.tiangolo.com/)
 [![Ollama](https://img.shields.io/badge/Ollama-local%20LLM-black)](https://ollama.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-compatible%20API-412991)](https://platform.openai.com/docs)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED)](https://www.docker.com/)
 [![Code style](https://img.shields.io/badge/code%20style-ruff-46a2f1)](https://docs.astral.sh/ruff/)
 
@@ -52,10 +53,11 @@ Compliance review is expensive, repetitive, and difficult to scale. This applica
 The system is built around a pragmatic production pattern:
 
 - The API starts immediately.
-- Ollama runs as the local model server.
+- Ollama runs as the default local model server.
+- OpenAI-compatible chat APIs are supported through `LLM_PROVIDER=openai`.
 - The application checks whether the configured model exists.
-- If missing, the application triggers Ollama's `/api/pull`.
-- Analysis endpoints return `503` until the model is ready. (or the model can be storaged in a shared volume).
+- With Ollama, if the model is missing, the application triggers Ollama's `/api/pull`.
+- Analysis endpoints return `503` until the model is ready. (or the model can be stored in a shared volume).
 - Models are stored in a persistent Ollama Docker volume.
 
 No model is baked into the Docker image, and there is no fragile downloader sidecar or startup sleep script.
@@ -63,7 +65,7 @@ No model is baked into the Docker image, and there is no fragile downloader side
 ## Highlights
 
 - **FastAPI backend** with typed request/response models.
-- **Local LLM integration** through Ollama for privacy-friendly document analysis.
+- **Configurable LLM integration** through Ollama or an OpenAI-compatible chat API.
 - **LangGraph pipeline** for document chunking and compliance analysis flow.
 - **PDF and plain-text input support**.
 - **Structured JSON output** using Pydantic schemas.
@@ -89,7 +91,7 @@ This repository is intended to show practical engineering ability beyond a simpl
 | --- | --- |
 | Backend | FastAPI, Uvicorn |
 | AI orchestration | LangGraph, LangChain |
-| Local inference | Ollama, Gemma |
+| LLM inference | Ollama/Gemma, OpenAI-compatible chat APIs |
 | Data validation | Pydantic |
 | PDF parsing | PyMuPDF |
 | Packaging | Poetry |
@@ -104,7 +106,7 @@ flowchart LR
     API --> Router["Compliance Router"]
     Router --> Parser["PDF/Text Parser"]
     Parser --> Graph["LangGraph Pipeline"]
-    Graph --> Ollama["Ollama Local LLM"]
+    Graph --> LLM["Ollama or OpenAI-compatible LLM"]
     Graph --> Report["Structured ComplianceReport"]
 ```
 
@@ -125,15 +127,19 @@ Model lifecycle:
 sequenceDiagram
     participant API as FastAPI
     participant Manager as ModelManager
-    participant Ollama as Ollama
+    participant Provider as LLM Provider
 
     API->>Manager: Start background task
-    Manager->>Ollama: GET /api/tags
-    alt model exists
+    alt Ollama provider
+        Manager->>Provider: GET /api/tags
+    else OpenAI-compatible provider
+        Manager->>Manager: Validate API key is configured
+    end
+    alt model/API config exists
         Manager->>API: Mark model ready
-    else model missing
-        Manager->>Ollama: POST /api/pull
-        Ollama->>Manager: Download into volume
+    else Ollama model missing
+        Manager->>Provider: POST /api/pull
+        Provider->>Manager: Download into volume
         Manager->>API: Mark model ready
     end
     API->>Client: 503 until ready, analysis after ready
@@ -167,6 +173,8 @@ The current rule set focuses on:
 Art.5, Art.6, Art.7, Art.13, Art.17, Art.20,
 Art.25, Art.28, Art.32, Art.33, Art.44-49
 ```
+
+The checklist is a practical summary of selected GDPR articles. The full legal text is available from the EU's EUR-Lex publication: [Regulation (EU) 2016/679](https://eur-lex.europa.eu/eli/reg/2016/679/oj).
 
 ### Scoring
 
@@ -248,8 +256,34 @@ Configuration:
 
 | Environment variable | Default | Description |
 | --- | --- | --- |
+| `LLM_PROVIDER` | `ollama` | `ollama` for local model lifecycle management, or `openai` for OpenAI-compatible chat APIs |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_MODEL` | `gemma3:4b` | Model used for compliance analysis |
+| `OLLAMA_MODEL` | `gemma3:4b` | Ollama model used for compliance analysis |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible API base URL |
+| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI-compatible model used for compliance analysis |
+| `OPENAI_API_KEY` | unset | API key used when `LLM_PROVIDER=openai` |
+
+Use OpenAI's hosted API:
+
+```bash
+export LLM_PROVIDER=openai
+export OPENAI_API_KEY="sk-..."
+export OPENAI_MODEL="gpt-4o-mini"
+poetry run uvicorn automatedcompliancechecker.main:app --reload
+```
+
+Test the OpenAI-compatible path with local Ollama, without using a paid OpenAI API call:
+
+```bash
+ollama serve
+ollama pull gemma3:4b
+
+LLM_PROVIDER=openai \
+OPENAI_BASE_URL=http://localhost:11434/v1 \
+OPENAI_API_KEY=ollama \
+OPENAI_MODEL=gemma3:4b \
+poetry run uvicorn automatedcompliancechecker.main:app --reload
+```
 
 ## Example Requests
 
@@ -312,7 +346,7 @@ poetry run pytest tests -q
 
 ## Engineering Decisions
 
-- **Local-first LLM inference:** documents are analysed through a local Ollama server instead of sending sensitive contracts to a hosted API.
+- **Provider-aware LLM inference:** documents can be analysed locally through Ollama or through an OpenAI-compatible chat API.
 - **Non-blocking startup:** the API does not wait for large model downloads before becoming reachable.
 - **Application-owned readiness:** the backend decides whether analysis can run and returns `503` while the model is unavailable.
 - **Persistent model storage:** Ollama stores downloaded models in a Docker volume.

@@ -12,6 +12,7 @@ import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, StateGraph
+from pydantic import SecretStr
 
 from automatedcompliancechecker.models.schemas import ClauseIssue, GraphState, LLMChunkResult
 from automatedcompliancechecker.services.model_manager import model_manager
@@ -32,7 +33,25 @@ SYSTEM_PROMPT = (
 )
 
 
-def get_llm() -> ChatOllama:
+def get_llm() -> Any:
+    if model_manager.provider == "openai":
+        try:
+            from langchain_openai import ChatOpenAI
+        except ImportError as exc:
+            raise RuntimeError(
+                "LLM_PROVIDER=openai requires the langchain-openai package. "
+                "Install project dependencies again before using OpenAI."
+            ) from exc
+
+        api_key = SecretStr(model_manager.api_key) if model_manager.api_key else None
+
+        return ChatOpenAI(
+            model=model_manager.model_name,
+            base_url=model_manager.base_url,
+            api_key=api_key,
+            temperature=0.0,
+        )
+
     return ChatOllama(
         model=model_manager.model_name,
         base_url=model_manager.base_url,
@@ -67,7 +86,7 @@ def node_analyse_articles(state: GraphState) -> GraphState:
     )
 
 
-def _analyse_article(article: dict, chunks: list[dict], llm: ChatOllama) -> list[ClauseIssue]:
+def _analyse_article(article: dict, chunks: list[dict], llm: Any) -> list[ClauseIssue]:
     relevant_chunks = [c for c in chunks if keyword_prescan(c["text"], article["risk_keywords"])]
     found_issues: list[ClauseIssue] = []
     seen_locations: set[str] = set()
@@ -85,7 +104,7 @@ def _analyse_article(article: dict, chunks: list[dict], llm: ChatOllama) -> list
     return found_issues
 
 
-def _llm_classify_chunk(chunk: dict, llm: ChatOllama) -> list[ClauseIssue]:
+def _llm_classify_chunk(chunk: dict, llm: Any) -> list[ClauseIssue]:
     structured_llm = llm.with_structured_output(LLMChunkResult)
 
     article_blocks = []
