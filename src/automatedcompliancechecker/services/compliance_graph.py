@@ -88,9 +88,12 @@ def _analyse_article(article: dict, chunks: list[dict], llm: ChatOllama) -> list
 def _llm_classify_chunk(chunk: dict, llm: ChatOllama) -> list[ClauseIssue]:
     structured_llm = llm.with_structured_output(LLMChunkResult)
 
-    articles_text = "\n\n".join(
-        f"{a['id']} — {a['title']}\n" + "\n".join(f"- {r}" for r in a["requirements"]) for a in GDPR_ARTICLES
-    )
+    article_blocks = []
+    for article in GDPR_ARTICLES:
+        requirements_text = "\n".join(f"- {requirement}" for requirement in article["requirements"])
+        article_blocks.append(f"{article['id']} — {article['title']}\n{requirements_text}")
+
+    articles_text = "\n\n".join(article_blocks)
 
     user_prompt = (
         "Evaluate the following document excerpt against these GDPR articles.\n\n"
